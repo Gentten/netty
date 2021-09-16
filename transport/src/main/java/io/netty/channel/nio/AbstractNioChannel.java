@@ -377,6 +377,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         boolean selected = false;
         for (;;) {
             try {
+                //将当前的通道转换为java的SelectableChannel 并将将其注册到eventLoop中的Selector 此处可以体现基于Java 原生的NIO！！！ 0 为 Accept事件
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {

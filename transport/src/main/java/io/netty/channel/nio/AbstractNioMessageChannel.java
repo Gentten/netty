@@ -76,6 +76,8 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             try {
                 try {
                     do {
+                        //读取消息 根据不同的channel类型 进行读取
+                        // 例如NioServerSocketChannel 则读取的是接受的socketChannel（JAVA 原生NIO）
                         int localRead = doReadMessages(readBuf);
                         if (localRead == 0) {
                             break;
@@ -90,10 +92,11 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                 } catch (Throwable t) {
                     exception = t;
                 }
-
+                //遍历读取的数量
                 int size = readBuf.size();
                 for (int i = 0; i < size; i ++) {
                     readPending = false;
+                    //发布channel read事件
                     pipeline.fireChannelRead(readBuf.get(i));
                 }
                 readBuf.clear();

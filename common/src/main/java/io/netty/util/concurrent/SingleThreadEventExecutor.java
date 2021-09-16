@@ -821,9 +821,13 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     private void execute(Runnable task, boolean immediate) {
+        //1、判断当前线程是否在EventLoop中
         boolean inEventLoop = inEventLoop();
+        //加入任务队列
         addTask(task);
+        //当前线程不是EventLoop
         if (!inEventLoop) {
+            //则启动当前EventLoop
             startThread();
             if (isShutdown()) {
                 boolean reject = false;
@@ -972,9 +976,12 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     private void doStartThread() {
         assert thread == null;
+        //线程池执行SingleThreadEventExecutor.this.run(); 也就是用线程池分配一个线程去绑定当前SingleThreadEventExecutor！！！
+        //也就是通过线程池分配运行任务时 将那个线程绑定到EventLoop中
         executor.execute(new Runnable() {
             @Override
             public void run() {
+                //运行时绑定线程！！！
                 thread = Thread.currentThread();
                 if (interrupted) {
                     thread.interrupt();

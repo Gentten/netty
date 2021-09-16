@@ -354,6 +354,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext fireChannelRead(final Object msg) {
+        //findContextInbound 是查找下一个Inbound的Ctx 也就是查找入站的Channel Handler
         invokeChannelRead(findContextInbound(MASK_CHANNEL_READ), msg);
         return this;
     }
@@ -362,8 +363,10 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         final Object m = next.pipeline.touch(ObjectUtil.checkNotNull(msg, "msg"), next);
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
+            //next的Handler处理 read 也就是入站
             next.invokeChannelRead(m);
         } else {
+            //不在则创建一个线程和EventLoop 绑定
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -376,6 +379,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private void invokeChannelRead(Object msg) {
         if (invokeHandler()) {
             try {
+                //执行ChannelInboundHandler的channelRead 一个ChannelHandlerContext 对应一个handler
                 ((ChannelInboundHandler) handler()).channelRead(this, msg);
             } catch (Throwable t) {
                 invokeExceptionCaught(t);
@@ -876,6 +880,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private AbstractChannelHandlerContext findContextInbound(int mask) {
         AbstractChannelHandlerContext ctx = this;
         EventExecutor currentExecutor = executor();
+        //遍历找下一个符合条件的入  或者 出
         do {
             ctx = ctx.next;
         } while (skipContext(ctx, currentExecutor, mask, MASK_ONLY_INBOUND));
@@ -935,6 +940,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         // We must call setAddComplete before calling handlerAdded. Otherwise if the handlerAdded method generates
         // any pipeline events ctx.handler() will miss them because the state will not allow it.
         if (setAddComplete()) {
+            // handler中增加handler的那些handler
             handler().handlerAdded(this);
         }
     }

@@ -93,10 +93,10 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         this.channel = ObjectUtil.checkNotNull(channel, "channel");
         succeededFuture = new SucceededChannelFuture(channel, null);
         voidPromise =  new VoidChannelPromise(channel, true);
-
+        //初始时一个头一个尾
         tail = new TailContext(this);
         head = new HeadContext(this);
-
+        //连接
         head.next = tail;
         tail.prev = head;
     }
@@ -183,6 +183,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     private void addFirst0(AbstractChannelHandlerContext newCtx) {
+        //addFirst是加在head后并不是替换head
         AbstractChannelHandlerContext nextCtx = head.next;
         newCtx.prev = head;
         newCtx.next = nextCtx;
@@ -225,6 +226,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     private void addLast0(AbstractChannelHandlerContext newCtx) {
+        //可以看到加入尾部是加入tail前
         AbstractChannelHandlerContext prev = tail.prev;
         newCtx.prev = prev;
         newCtx.next = tail;
@@ -271,6 +273,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     private static void addBefore0(AbstractChannelHandlerContext ctx, AbstractChannelHandlerContext newCtx) {
+        //
         newCtx.prev = ctx.prev;
         newCtx.next = ctx;
         ctx.prev.next = newCtx;
@@ -916,6 +919,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelPipeline fireChannelRead(Object msg) {
+        //执行ChannelRead  read 第一个从head开始 ！！！
+        //可以看到入站先从head开始
         AbstractChannelHandlerContext.invokeChannelRead(head, msg);
         return this;
     }
@@ -1407,6 +1412,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            //头部直接发布read事件 让后续的handler进行处理
             ctx.fireChannelRead(msg);
         }
 
@@ -1460,6 +1466,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         void execute() {
             EventExecutor executor = ctx.executor();
             if (executor.inEventLoop()) {
+                //执行add
                 callHandlerAdded0(ctx);
             } else {
                 try {

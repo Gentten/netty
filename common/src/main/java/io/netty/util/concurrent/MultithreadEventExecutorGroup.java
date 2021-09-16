@@ -77,10 +77,11 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         }
 
         children = new EventExecutor[nThreads];
-
+        //直接按需要线程数创建对应的EventExecutor（例如NioEvenLoop） 此时并没有绑定线程
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                //创建对应的线程 也是交给对应子类去实现
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {

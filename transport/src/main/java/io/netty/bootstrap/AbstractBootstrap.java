@@ -269,6 +269,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        //初始化信道并且注册
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
@@ -307,7 +308,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            //创建Channel channelFactory在配置channel(class)类型创建一个ReflectiveChannelFactory 即通过指定class的无参构造器创建不同的Channel
+            //当然也支持配置channelFactory （负责创建不同的channel）
             channel = channelFactory.newChannel();
+            //初始化 抽象方法交给子类处理
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -319,7 +323,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
-
+        //在bossGroup（主）注册channel ！！！（例如socket中 ServerSocketChannel）
+        // 后面Accept or read 之后将 接受到channel 注册到workGroup 例如socket 则时将socketChannel注册到workGroup
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {

@@ -40,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * {@link Bootstrap} sub-class which allows easy bootstrap of {@link ServerChannel}
- *
  */
 public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerChannel> {
 
@@ -54,7 +53,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
     private volatile EventLoopGroup childGroup;
     private volatile ChannelHandler childHandler;
 
-    public ServerBootstrap() { }
+    public ServerBootstrap() {
+    }
 
     private ServerBootstrap(ServerBootstrap bootstrap) {
         super(bootstrap);
@@ -131,14 +131,16 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
     void init(Channel channel) {
         setChannelOptions(channel, newOptionsArray(), logger);
         setAttributes(channel, newAttributesArray());
-
+        //得到pipeline（信道创建时会创建一个pipeline） 大多数情况下此时 只有一个头一个尾（两个特殊的节点不会被取代也就是头尾不变）后续增加的channelHandler是在两者之间
         ChannelPipeline p = channel.pipeline();
-
+        //childGroup 就是配置的workGroup 也就是从reactor
         final EventLoopGroup currentChildGroup = childGroup;
         final ChannelHandler currentChildHandler = childHandler;
         final Entry<ChannelOption<?>, Object>[] currentChildOptions = newOptionsArray(childOptions);
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = newAttributesArray(childAttrs);
 
+        //尾部增加一个ChannelInitializer 因为实际的尾部添加是加在tail 前
+        //当channel注册到selector后会执行channelAdd  也就是会执行 initChannel方法
         p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) {
@@ -147,10 +149,12 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                 if (handler != null) {
                     pipeline.addLast(handler);
                 }
-
+                //eventLoop执行任务  尾部添加一个ServerBootstrapAcceptor 此时ch.eventLoop() 就是配置的bossEventLoop中的eventLoop线程
+                //execute 判断当前线程是不所绑定线程 不是绑定线程则创建一个新的线程和Eventloop绑定
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
+                        //ServerBootstrapAcceptor 在Accent事件时将channel注册到workEventLoopGroup 中EventLoop
                         pipeline.addLast(new ServerBootstrapAcceptor(
                                 ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
                     }
@@ -204,14 +208,23 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         @Override
         @SuppressWarnings("unchecked")
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            //ChannelInboundHandlerAdapter 入站处理
+
+            //此处为什么可以将msg转换为信道???
+            //因为一开始开始读取的数据都是为 Chanel
+            // NioEventLoop 在处理Aceept事件时 unsafe.read(); 中返回的是channel NIO accept 事件后的channel 例如 socket中 socketChannel
+            // 在创建信道时创建不同的   AbstractNioUnsafe 来处理事件
             final Channel child = (Channel) msg;
 
+            //将childHandler注册到 接收的channel的pipeline中
             child.pipeline().addLast(childHandler);
 
             setChannelOptions(child, childOptions, logger);
             setAttributes(child, childAttrs);
 
             try {
+                //然后像注册到bossGroup 那样将channel注册到 workGroup中去 也就是注册到当中EventLoop 当Eventloop注册时发现当前线程不是绑定线程
+                //则启动一个线程绑定到EventLoop中 并将其channel注册到EventLoop的selector当中
                 childGroup.register(child).addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) throws Exception {
@@ -223,6 +236,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             } catch (Throwable t) {
                 forceClose(child, t);
             }
+            //并没有转发事件 ，也就是BoosGroup 中的EventLoop将它转发到WorkGroup后 入站事件完成
         }
 
         private static void forceClose(Channel child, Throwable t) {
